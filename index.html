@@ -42,7 +42,7 @@ hr{border:0;border-top:1px solid #eee;margin:16px 0}
 </style></head>
 <body>
 <header>
-  <img src="assets/logo.png" alt="Wood Garage 24">
+  <img src="logo.png" alt="Wood Garage 24">
   <div><div class="brand-title">WOOD GARAGE 24</div><div class="brand-sub">Gestionale ordini · magazzino · cassa · margini</div></div>
 </header>
 <main>
@@ -77,7 +77,7 @@ function authScreen(){
  $("nav").innerHTML="";
  $("app").innerHTML=`<div style="max-width:460px;margin:50px auto">
  <div class="card" style="text-align:center">
- <img src="assets/logo.png" style="width:180px;max-height:120px;object-fit:contain" alt="Wood Garage 24">
+ <img src="logo.png" style="width:180px;max-height:120px;object-fit:contain" alt="Wood Garage 24">
  <h1 style="margin:0 0 5px">Wood Garage 24</h1>
  <div class="muted" style="margin-bottom:20px">Gestionale online</div>
  <div id="authMsg" class="small" style="margin-bottom:10px"></div>
@@ -135,7 +135,7 @@ async function boot(){try{await loadOnline();goNav("home")}catch(e){$("app").inn
 function home(){
  const low=db.products.filter(p=>p.qty<=p.min),open=db.orders.filter(o=>o.status!=="Consegnato").length;
  const revenue=db.orders.reduce((a,o)=>a+o.total,0),cost=db.orders.reduce((a,o)=>a+o.cost,0),due=db.orders.reduce((a,o)=>a+Math.max(0,o.total-o.paid),0);
- $("app").innerHTML=`<div class="card" style="display:flex;align-items:center;gap:16px"><img src="assets/logo.png" style="width:145px;max-height:100px;object-fit:contain"><div><h1 style="margin:0 0 5px">Dashboard</h1><div class="muted">Wood Garage 24 · gestionale online</div></div></div>
+ $("app").innerHTML=`<div class="card" style="display:flex;align-items:center;gap:16px"><img src="logo.png" style="width:145px;max-height:100px;object-fit:contain"><div><h1 style="margin:0 0 5px">Dashboard</h1><div class="muted">Wood Garage 24 · gestionale online</div></div></div>
  <div class="grid"><div class="card stat"><div class="muted">Ordini aperti</div><div class="big">${open}</div></div><div class="card stat"><div class="muted">Vendite</div><div class="big">${money(revenue)}</div></div><div class="card stat"><div class="muted">Margine lordo</div><div class="big">${money(revenue-cost)}</div></div><div class="card stat"><div class="muted">Da incassare</div><div class="big">${money(due)}</div></div></div>
  <div class="card ${low.length?'warn':'ok'}"><strong>${low.length?'⚠️ Prodotti da riordinare':'🟢 Magazzino sotto controllo'}</strong><div class="muted" style="margin-top:6px">${low.length?low.map(p=>`${esc(p.name)}: ${p.qty} rimasti · minimo ${p.min}`).join(" · "):"Nessun articolo sotto la scorta minima."}</div></div>
  <div class="card"><div class="row"><h2 style="margin:0">Ultimi ordini</h2><button type="button" onclick="goNav('orders')">Vedi tutti</button></div>${db.orders.length?`<div class="scroll"><table><tr><th>#</th><th>Cliente</th><th>Articoli</th><th>Totale</th><th>Stato</th></tr>${db.orders.slice().reverse().slice(0,8).map(o=>`<tr class="click" onclick="viewOrder('${o.id}')"><td>#${o.number}</td><td>${esc(o.customer)}</td><td>${o.items.length}</td><td>${money(o.total)}</td><td><span class="badge">${esc(o.status)}</span></td></tr>`).join("")}</table></div>`:`<div class="empty">Nessun ordine. Vai su Ordini per crearne uno.</div>`}</div>`;
