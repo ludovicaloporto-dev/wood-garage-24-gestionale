@@ -166,13 +166,13 @@ function fillCustomerPhone(){const c=db.clients.find(x=>x.name.toLowerCase()===$
 function addItem(data={}){
  const el=document.createElement("div");el.className="article";el.dataset.id=uid();
  el.innerHTML=`<div class="row"><strong>Articolo</strong><button class="danger" onclick="this.closest('.article').remove();calcOrder()">Rimuovi</button></div>
- <div class="item-grid" style="margin-top:10px"><label>Prodotto<select class="prod">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}<option value="__new">Altro / nuovo</option></select></label><label>Quantità<input class="qty" type="number" min="1" value="${data.qty||1}"></label><label>Prezzo di vendita €<input class="sell" type="number" min="0" step=".01" value="${data.sell??""}"></label></div>
+ <div class="item-grid" style="margin-top:10px"><label>Prodotto<select class="prod">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}<option value="__new">Altro / nuovo</option></select></label><label>Quantità<input class="qty" type="number" min="1" value="${data.qty||1}"></label><label>Prezzo cliente €<input class="sell" type="number" min="0" step=".01" value="${data.sell??""}"></label></div>
  <label style="margin-top:10px">Personalizzazione<textarea class="notes" rows="2" placeholder="Nome, colori, scritte, misure...">${esc(data.notes||"")}</textarea></label>
  <div class="graphic-box"><strong>🎨 Grafica</strong><div class="muted small">L'originale resta per la produzione; al cliente mostrerai l'anteprima con filigrana.</div><input class="graphic-file" type="file" accept="image/png,image/jpeg,image/webp" style="margin-top:8px"><div class="graphic-preview-wrap"></div><div class="graphic-actions actions"></div></div>
  <div class="muted gapline" style="margin-top:8px"></div>`;
  $("items").appendChild(el);
  if(data.productId)el.querySelector(".prod").value=data.productId;
- const fill=()=>{const p=db.products.find(x=>x.id===el.querySelector(".prod").value);if(p)el.querySelector(".sell").value=p.sell;calcOrder()};
+ const fill=()=>{const p=db.products.find(x=>x.id===el.querySelector(".prod").value);if(p && data.sell==null)el.querySelector(".sell").value=p.sell;calcOrder()};
  el.querySelector(".prod").onchange=fill;el.querySelectorAll("input,textarea").forEach(x=>x.addEventListener("input",calcOrder));el.querySelector(".graphic-file").addEventListener("change",()=>handleGraphicFile(el));fill();
 }
 function showGraphicPreview(el,url){el.querySelector(".graphic-preview-wrap").innerHTML=`<div class="graphic-preview"><img src="${url}" alt="Anteprima grafica"><div class="graphic-watermark">WOOD GARAGE 24</div></div>`;el.querySelector(".graphic-actions").innerHTML=`<button type="button" onclick="downloadGraphicPreview(this)">⬇️ Scarica anteprima filigranata</button>`}
@@ -199,6 +199,75 @@ function viewOrder(id){
  <div class="card"><h2>Articoli</h2>${o.items.map((i,n)=>`<div class="article"><div class="row"><strong>${n+1}. ${esc(i.productName)}</strong><span class="badge">Qtà ${i.qty}</span></div><div class="grid2" style="margin-top:10px"><div><div class="muted">Personalizzazione</div>${esc(i.notes||"—")}</div><div><div class="muted">Prezzo</div>${money(i.sell)} × ${i.qty} = <b>${money(i.sell*i.qty)}</b></div></div></div>`).join("")}</div>
  <div class="card grid"><div><div class="muted">Totale</div><div class="big">${money(o.total)}</div></div><div><div class="muted">Costo</div><div class="big">${money(o.cost)}</div></div><div><div class="muted">Margine</div><div class="big">${money(o.total-o.cost)}</div></div><div><div class="muted">Pagato / da incassare</div><div class="big">${money(o.paid)} / ${money(Math.max(0,o.total-o.paid))}</div></div></div>
  <div class="actions"><button type="button" onclick="goNav('orders')">← Ordini</button>${o.total>o.paid?`<button type="button" class="primary" onclick="registerPayment('${o.id}')">＋ Registra pagamento</button>`:"<span class='badge'>✓ Pagato</span>"}</div>`;
+}
+function editOrder(id){
+ const o=db.orders.find(x=>x.id===id);if(!o)return;
+ editingOrderId=id;
+ $("app").innerHTML=`<div class="row"><div><h1>Modifica ordine #${o.number}</h1><div class="muted">Puoi modificare cliente, date, stato, articoli, quantità, prezzi e personalizzazioni.</div></div><button type="button" onclick="viewOrder('${o.id}')">Annulla</button></div>
+ <div class="card grid2">
+ <label>Cliente *<input id="oc" value="${esc(o.customer)}" list="customerList" oninput="fillCustomerPhone()"><datalist id="customerList">${customerOptions()}</datalist></label>
+ <label>WhatsApp / telefono<input id="op" value="${esc(o.phone||"")}" placeholder="Numero cliente"></label>
+ <label>Data ordine<input id="od" type="date" value="${o.date||""}"></label>
+ <label>Data consegna<input id="odel" type="date" value="${o.delivery||""}"></label>
+ <label>Stato<select id="os">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label>
+ <div><div class="muted">Acconto già registrato</div><div class="big" style="font-size:20px">${money(o.paid)}</div></div>
+ </div>
+ <div class="card"><div class="row"><div><h2 style="margin:0">Articoli</h2><div class="muted">Il prezzo cliente può essere diverso dal prezzo pubblico del prodotto.</div></div><button class="primary" type="button" onclick="addItem()">＋ Aggiungi articolo</button></div><div id="items"></div></div>
+ <div class="card"><h2>Riepilogo</h2><div id="sum" class="grid"></div><div class="actions"><button class="primary" type="button" onclick="saveEditedOrder()">✓ Salva modifiche</button></div></div>`;
+ o.items.forEach(i=>addItem({productId:i.productId,qty:i.qty,sell:i.sell,notes:i.notes}));
+ calcOrder();
+}
+async function saveEditedOrder(){
+ try{
+  const id=editingOrderId,o=db.orders.find(x=>x.id===id);if(!o)return;
+  const customer=$("oc").value.trim(),items=collectItems();
+  if(!customer||!items.length)return alert("Inserisci cliente e almeno un articolo.");
+  const total=items.reduce((a,x)=>a+x.qty*x.sell,0),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);
+  const oldItems=o.items.slice();
+
+  // Ripristina prima le quantità precedentemente scalate.
+  for(const i of oldItems){
+   if(i.productId){
+    const p=db.products.find(x=>x.id===i.productId);
+    if(p){const r=await sb.from("products").update({quantity:p.qty+i.qty}).eq("id",p.id);if(r.error)throw r.error;}
+   }
+  }
+
+  const ur=await sb.from("orders").update({
+   customer_name:customer,
+   customer_phone:$("op").value.trim(),
+   order_date:$("od").value,
+   delivery_date:$("odel").value||null,
+   status:$("os").value,
+   total,
+   total_cost:cost
+  }).eq("id",id);
+  if(ur.error)throw ur.error;
+
+  const dr=await sb.from("order_items").delete().eq("order_id",id);
+  if(dr.error)throw dr.error;
+
+  const cl=db.clients.find(x=>x.name.toLowerCase()===customer.toLowerCase());
+  if(!cl){
+   const cr=await sb.from("clients").insert({name:customer,phone:$("op").value.trim()});
+   if(cr.error)throw cr.error;
+  }
+
+  for(const i of items){
+   const itemId=uid(),originalPath=await uploadGraphic(id,itemId,i.graphicData);
+   const ir=await sb.from("order_items").insert({
+    id:itemId,order_id:id,product_id:i.productId==="__new"?null:i.productId,
+    product_name:i.productName,quantity:i.qty,purchase_cost_unit:i.cost,
+    public_price_unit:i.sell,personalization:i.notes||null,original_graphic_path:originalPath
+   });
+   if(ir.error)throw ir.error;
+   if(i.productId!=="__new"){
+    const p=db.products.find(x=>x.id===i.productId);
+    if(p){const rr=await sb.from("products").update({quantity:Math.max(0,p.qty-i.qty)}).eq("id",p.id);if(rr.error)throw rr.error;}
+   }
+  }
+  await loadOnline();editingOrderId=null;toast("Modifiche salvate");viewOrder(id);
+ }catch(e){fail(e)}
 }
 async function changeStatus(id,status){try{const r=await sb.from("orders").update({status}).eq("id",id);if(r.error)throw r.error;await loadOnline();toast("Stato aggiornato")}catch(e){fail(e)}}
 async function registerPayment(id){try{const o=db.orders.find(x=>x.id===id),remaining=o.total-o.paid,a=+prompt(`Quanto ha pagato? Restano ${money(remaining)}`,remaining.toFixed(2));if(!(a>0))return;const x=Math.min(a,remaining);let r=await sb.from("payments").insert({order_id:id,amount:x,payment_date:new Date().toISOString().slice(0,10)});if(r.error)throw r.error;r=await sb.from("cash_movements").insert({movement_type:"Entrata",amount:x,movement_date:new Date().toISOString().slice(0,10),description:`Pagamento ordine #${o.number} — ${o.customer}`,order_id:id,created_by:currentUser.id});if(r.error)throw r.error;r=await sb.from("orders").update({paid:o.paid+x}).eq("id",id);if(r.error)throw r.error;await loadOnline();viewOrder(id);toast("Pagamento registrato")}catch(e){fail(e)}}
