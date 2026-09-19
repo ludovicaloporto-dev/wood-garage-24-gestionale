@@ -292,7 +292,7 @@ async function newSupply(){
   const cost=num(prompt("Costo unitario di questo approvvigionamento",String(p.cost).replace(".", ",")));if(!(cost>=0))return;
   const date=prompt("Data approvvigionamento",new Date().toISOString().slice(0,10))||new Date().toISOString().slice(0,10);
   const total=qty*cost;
-  const r=await sb.from("stock_movements").insert({product_id:p.id,movement_type:"IN",quantity:qty,unit_cost:cost,created_by:currentUser.id});
+  const r=await sb.from("stock_movements").insert({product_id:p.id,movement_type:"Carico",quantity:qty,description:`Approvvigionamento — ${qty} × ${money(cost)} cad.`,created_by:currentUser.id});
   if(r.error)throw r.error;
   const ur=await sb.from("products").update({quantity:p.qty+qty,purchase_cost:cost}).eq("id",p.id);
   if(ur.error)throw ur.error;
@@ -305,10 +305,10 @@ async function newSupply(){
 async function loadSupplyHistory(){
  const box=$("supplyHistory");if(!box)return;
  try{
-  const r=await sb.from("stock_movements").select("*").eq("movement_type","IN").order("created_at",{ascending:false}).limit(100);
+  const r=await sb.from("stock_movements").select("*").eq("movement_type","Carico").order("created_at",{ascending:false}).limit(100);
   if(r.error)throw r.error;
   const rows=r.data||[];
-  box.innerHTML=rows.length?`<table><tr><th>Data</th><th>Prodotto</th><th class="right">Quantità</th><th class="right">Costo unit.</th><th class="right">Totale</th></tr>${rows.map(x=>{const p=db.products.find(p=>p.id===x.product_id);const d=(x.created_at||"").slice(0,10);return`<tr><td>${d}</td><td><b>${esc(p?.name||"Prodotto")}</b></td><td class="right">${x.quantity}</td><td class="right">${money(x.unit_cost)}</td><td class="right">${money((+x.quantity||0)*(+x.unit_cost||0))}</td></tr>`}).join("")}</table>`:`<div class="empty">Nessun approvvigionamento registrato.</div>`;
+  box.innerHTML=rows.length?`<table><tr><th>Data</th><th>Prodotto</th><th class="right">Quantità</th><th>Dettaglio</th></tr>${rows.map(x=>{const p=db.products.find(p=>p.id===x.product_id);const d=(x.created_at||"").slice(0,10);return`<tr><td>${d}</td><td><b>${esc(p?.name||"Prodotto")}</b></td><td class="right">${x.quantity}</td><td>${esc(x.description||"Approvvigionamento")}</td></tr>`}).join("")}</table>`:`<div class="empty">Nessun approvvigionamento registrato.</div>`;
  }catch(e){box.innerHTML=`<div class="empty">Storico non disponibile: ${esc(e.message)}</div>`}
 }
 async function addProduct(){try{const name=prompt("Nome prodotto");if(!name)return;const qty=Math.max(0,num(prompt("Quantità iniziale","0"))),min=Math.max(0,num(prompt("Scorta minima","5"))),cost=Math.max(0,num(prompt("Costo acquisto","0"))),sell=Math.max(0,num(prompt("Prezzo pubblico","0")));const r=await sb.from("products").insert({name,quantity:qty,minimum_quantity:min,purchase_cost:cost,public_price:sell});if(r.error)throw r.error;await loadOnline();stock();toast("Prodotto aggiunto")}catch(e){fail(e)}}
