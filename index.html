@@ -292,7 +292,7 @@ async function newSupply(){
   const cost=num(prompt("Costo unitario di questo approvvigionamento",String(p.cost).replace(".", ",")));if(!(cost>=0))return;
   const date=prompt("Data approvvigionamento",new Date().toISOString().slice(0,10))||new Date().toISOString().slice(0,10);
   const total=qty*cost;
-  const r=await sb.from("stock_movements").insert({product_id:p.id,movement_type:"IN",quantity:qty,unit_cost:cost,reference_type:"APPROVVIGIONAMENTO",notes:"Acquisto merce",created_by:currentUser.id});
+  const r=await sb.from("stock_movements").insert({product_id:p.id,movement_type:"IN",quantity:qty,unit_cost:cost,reference_type:"APPROVVIGIONAMENTO",created_by:currentUser.id});
   if(r.error)throw r.error;
   const ur=await sb.from("products").update({quantity:p.qty+qty,purchase_cost:cost}).eq("id",p.id);
   if(ur.error)throw ur.error;
