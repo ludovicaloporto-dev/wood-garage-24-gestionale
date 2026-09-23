@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="mobile.webmanifest"><title>Wood Garage 24 · Ordini</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f4f4;color:#171717;font-family:Arial,sans-serif}
+header{background:#111;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
+header img{width:58px;height:48px;object-fit:contain}.brand{font-weight:800}.sub{font-size:12px;opacity:.65;margin-top:3px}
+main{max-width:700px;margin:auto;padding:14px}.card{background:#fff;border:1px solid #ddd;border-radius:16px;padding:14px;margin-bottom:12px}
+h1{font-size:24px;margin:8px 0}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:13px;font-weight:700;margin-bottom:10px}input,select,textarea{width:100%;padding:12px;border:1px solid #ccc;border-radius:10px;font:inherit;background:#fff}textarea{min-height:70px}
+button{border:1px solid #ccc;background:#fff;border-radius:11px;padding:11px 13px;font-weight:700;font-size:14px}button.primary{background:#111;color:#fff;border-color:#111}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.article{border:1px solid #ddd;border-radius:14px;padding:12px;margin-top:10px;background:#fafafa}.article-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.badge{display:inline-block;background:#eee;border-radius:999px;padding:5px 9px;font-size:12px}.muted{color:#666;font-size:13px}.big{font-size:22px;font-weight:800}
+.preview{position:relative;display:inline-block;margin-top:8px}.preview img{max-width:100%;max-height:220px;border-radius:10px}.wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;text-shadow:0 1px 4px #000;transform:rotate(-22deg);pointer-events:none}
+.order-row{padding:12px 0;border-bottom:1px solid #eee}.order-row:last-child{border-bottom:0}.empty{text-align:center;padding:30px;color:#666}
+.toast{position:fixed;bottom:18px;left:16px;right:16px;background:#111;color:#fff;padding:13px;border-radius:12px;text-align:center;z-index:50}
+@media(max-width:560px){.grid{grid-template-columns:1fr}main{padding:10px}}
+</style></head>
+<body>
+<header><img src="logo.png"><div><div class="brand">WOOD GARAGE 24</div><div class="sub">Inserimento ordini · mobile</div></div></header>
+<main><div id="app"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+"use strict";
+const SUPABASE_URL="https://fwrnklssnxnfiigiswzu.supabase.co";
+const SUPABASE_KEY="sb_publishable_6sXvorsx0MIhqMKof-vQZA_MM1PyZM9";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let user=null,products=[],clients=[],orders=[],editingId=null;
+const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR"}).format(Number(n)||0);
+const num=v=>Number(String(v??"").trim().replace(",","."))||0;
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+const uid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random());
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
+function fail(e){console.error(e);alert(e?.message||String(e))}
+function auth(){
+ $("app").innerHTML=`<div class="card"><h1>📱 Ordini</h1><div class="muted">Accedi con lo stesso account del gestionale PC.</div>
+ <label style="margin-top:16px">Email<input id="email" type="email"></label><label>Password<input id="pass" type="password"></label>
+ <div class="actions"><button class="primary" onclick="login()">Accedi</button></div><div id="msg" class="muted"></div></div>`}
+async function login(){try{const r=await sb.auth.signInWithPassword({email:$("email").value.trim(),password:$("pass").value});if(r.error)throw r.error;user=r.data.user;await boot()}catch(e){$("msg").textContent=e.message}}
+async function load(){
+ const [p,c,o]=await Promise.all([sb.from("products").select("*").order("name"),sb.from("clients").select("*").order("name"),sb.from("orders").select("*").order("order_number",{ascending:false})]);
+ for(const r of [p,c,o])if(r.error)throw r.error;
+ products=p.data||[];clients=c.data||[];
+ const raw=o.data||[];
+ if(raw.length){const ir=await sb.from("order_items").select("*").in("order_id",raw.map(x=>x.id)).order("created_at");if(ir.error)throw ir.error;
+ orders=raw.map(x=>({...x,items:(ir.data||[]).filter(i=>i.order_id===x.id)}));
+ }else orders=[];
+}
+async function boot(){try{await load();home()}catch(e){$("app").innerHTML=`<div class="card"><h2>Errore di collegamento</h2><p class="muted">${esc(e.message)}</p><button onclick="boot()">Riprova</button></div>`}}
+function home(){
+ $("app").innerHTML=`<div class="row"><div><h1>Ordini</h1><div class="muted">Crea o modifica gli ordini anche quando sei fuori.</div></div><button class="primary" onclick="newOrder()">＋ Nuovo</button></div>
+ <div class="card">${orders.length?orders.map(o=>`<div class="order-row"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join(""):`<div class="empty">Nessun ordine ancora.</div>`}</div>`}
+function customerOptions(){return clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||"")}</option>`).join("")}
+function nextNumber(){return Math.max(1000,...orders.map(o=>+o.order_number||0))+1}
+function newOrder(){
+ editingId=null;
+ $("app").innerHTML=`<div class="row"><h1>Nuovo ordine #${nextNumber()}</h1><button onclick="home()">← Indietro</button></div>
+ <div class="card">
+ <label>👤 Cliente *<input id="customer" list="customers" placeholder="Nome cliente"><datalist id="customers">${customerOptions()}</datalist></label>
+ <label>Telefono / WhatsApp<input id="phone" placeholder="Numero"></label>
+ <div class="grid"><label>📅 Data consegna<input id="delivery" type="date"></label><label>Stato<select id="status"><option>Nuovo</option><option>In lavorazione</option><option>In attesa approvazione</option><option>Pronto</option></select></label></div>
+ </div>
+ <div class="card"><div class="row"><div><h2 style="margin:0">🧾 Articoli</h2><div class="muted">Puoi inserirne più di uno.</div></div><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
+ <div class="card"><div class="row"><div><span class="muted">Totale ordine</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva ordine</button></div></div>`;
+ $("customer").addEventListener("input",fillPhone);addItem();
+}
+function fillPhone(){const c=clients.find(x=>x.name.toLowerCase()===$("customer").value.trim().toLowerCase());if(c)$("phone").value=c.phone||""}
+function addItem(data={}){
+ const el=document.createElement("div");el.className="article";el.dataset.id=uid();
+ el.innerHTML=`<div class="article-head"><b>Articolo</b><button type="button" onclick="this.closest('.article').remove();calc()">🗑️</button></div>
+ <label style="margin-top:10px">Articolo<select class="prod"><option value="">Seleziona articolo</option>${products.map(p=>`<option value="${p.id}" ${data.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></label>
+ <div class="grid"><label>Quantità<input class="qty" type="number" min="1" value="${data.qty||1}" oninput="calc()"></label><label>💰 Prezzo cliente €<input class="sell" type="text" inputmode="decimal" value="${data.sell??""}" placeholder="0,00" oninput="calc()"></label></div>
+ <label>✏️ Personalizzazione<textarea class="notes" placeholder="Nome, scritta, colori...">${esc(data.notes||"")}</textarea></label>
+ <label>📝 Note<textarea class="extra" placeholder="Eventuali note per la lavorazione...">${esc(data.extra||"")}</textarea></label>
+ <label>🖼️ Grafica / foto<input class="graphic" type="file" accept="image/*" capture="environment"></label>
+ <div class="preview-area"></div>`;
+ $("items").appendChild(el);
+ el.querySelector(".graphic").addEventListener("change",()=>previewGraphic(el));
+ if(data.graphicPath)loadExistingGraphic(el,data.graphicPath);
+}
+function calc(){let t=0;document.querySelectorAll(".article").forEach(a=>t+=num(a.querySelector(".qty").value)*num(a.querySelector(".sell").value));$("total").textContent=money(t)}
+function previewGraphic(el){
+ const f=el.querySelector(".graphic").files[0];if(!f)return;
+ const rd=new FileReader();rd.onload=()=>{el.dataset.graphicData=rd.result;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${rd.result}"><div class="wm">WOOD GARAGE 24</div></div>`};rd.readAsDataURL(f)
+}
+async function loadExistingGraphic(el,path){
+ try{const r=await sb.storage.from("wood-garage-grafiche").createSignedUrl(path,3600);if(r.error||!r.data?.signedUrl)return;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${r.data.signedUrl}"><div class="wm">WOOD GARAGE 24</div></div><div class="muted">Grafica attuale · scegli un nuovo file per sostituirla</div>`}catch(e){}
+}
+function collect(){
+ return [...document.querySelectorAll(".article")].map(a=>{const p=products.find(x=>x.id===a.querySelector(".prod").value);return{productId:p?.id||null,productName:p?.name||"Altro / nuovo",qty:Math.max(1,num(a.querySelector(".qty").value)),sell:Math.max(0,num(a.querySelector(".sell").value)),cost:+(p?.purchase_cost||0),notes:a.querySelector(".notes").value.trim(),extra:a.querySelector(".extra").value.trim(),graphicData:a.dataset.graphicData||null}}).filter(x=>x.productName&&x.sell>=0)}
+async function uploadGraphic(orderId,itemId,data){
+ if(!data)return null;const m=data.match(/^data:(image\/[^;]+);base64,(.+)$/);if(!m)return null;
+ const mime=m[1],bytes=Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0)),ext=mime.includes("png")?"png":mime.includes("webp")?"webp":"jpg";
+ const path=`${user.id}/${orderId}/${itemId}/original.${ext}`;
+ const r=await sb.storage.from("wood-garage-grafiche").upload(path,bytes,{contentType:mime,upsert:true});if(r.error)throw r.error;return path;
+}
+async function saveOrder(){
+ try{
+  const customer=$("customer").value.trim(),items=collect();if(!customer||!items.length)return alert("Inserisci cliente e almeno un articolo.");
+  const total=items.reduce((a,x)=>a+x.qty*x.sell,0),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);
+  let id=editingId,number;
+  if(!id){
+   number=nextNumber();
+   const r=await sb.from("orders").insert({order_number:number,customer_name:customer,customer_phone:$("phone").value.trim(),order_date:new Date().toISOString().slice(0,10),delivery_date:$("delivery").value||null,status:$("status").value,total,total_cost:cost,paid:0,created_by:user.id}).select().single();
+   if(r.error)throw r.error;id=r.data.id;
+  }else{
+   const old=orders.find(o=>o.id===id);number=old.order_number;
+   const r=await sb.from("orders").update({customer_name:customer,customer_phone:$("phone").value.trim(),delivery_date:$("delivery").value||null,status:$("status").value,total,total_cost:cost}).eq("id",id);if(r.error)throw r.error;
+   for(const oldItem of (old.items||[])){if(oldItem.product_id){const p=products.find(x=>x.id===oldItem.product_id);if(p)await sb.from("products").update({quantity:+p.quantity+ +oldItem.quantity}).eq("id",p.id)}}
+   const dr=await sb.from("order_items").delete().eq("order_id",id);if(dr.error)throw dr.error;
+  }
+  const c=clients.find(x=>x.name.toLowerCase()===customer.toLowerCase());
+  if(!c){const cr=await sb.from("clients").insert({name:customer,phone:$("phone").value.trim()});if(cr.error)throw cr.error}
+  for(const item of items){
+   const iid=uid(),path=await uploadGraphic(id,iid,item.graphicData);
+   const ir=await sb.from("order_items").insert({id:iid,order_id:id,product_id:item.productId,product_name:item.productName,quantity:item.qty,purchase_cost_unit:item.cost,public_price_unit:item.sell,personalization:item.notes||null,original_graphic_path:path});if(ir.error)throw ir.error;
+   if(item.productId){const p=products.find(x=>x.id===item.productId);if(p){const q=Math.max(0,+p.quantity-(+item.qty));const ur=await sb.from("products").update({quantity:q}).eq("id",p.id);if(ur.error)throw ur.error}}
+  }
+  await load();toast(editingId?"Ordine modificato":"Ordine salvato");home();
+ }catch(e){fail(e)}
+}
+async function editOrder(id){
+ editingId=id;const o=orders.find(x=>x.id===id);if(!o)return;
+ $("app").innerHTML=`<div class="row"><h1>Modifica #${o.order_number}</h1><button onclick="home()">← Indietro</button></div>
+ <div class="card"><label>👤 Cliente *<input id="customer" list="customers" value="${esc(o.customer_name)}"><datalist id="customers">${customerOptions()}</datalist></label><label>Telefono / WhatsApp<input id="phone" value="${esc(o.customer_phone||"")}"></label>
+ <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
+ <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
+ <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div></div>`;
+ $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
+}
+(async function start(){try{const r=await sb.auth.getSession();if(r.data.session){user=r.data.session.user;await boot()}else auth()}catch(e){auth()}})();
+</script></body></html>
