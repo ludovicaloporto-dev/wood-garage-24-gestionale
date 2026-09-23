@@ -51,9 +51,17 @@ async function load(){
  }else orders=[];
 }
 async function boot(){try{await load();home()}catch(e){$("app").innerHTML=`<div class="card"><h2>Errore di collegamento</h2><p class="muted">${esc(e.message)}</p><button onclick="boot()">Riprova</button></div>`}}
+let orderFilter="Aperti";
 function home(){
+ const filters=["Aperti","Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato","Tutti"];
+ const shown=orders.filter(o=>orderFilter==="Tutti" ? true : orderFilter==="Aperti" ? o.status!=="Consegnato" : o.status===orderFilter);
+ const filterButtons=filters.map(f=>`<button class="${f===orderFilter?"primary":""}" onclick="setOrderFilter('${f}')">${f}</button>`).join("");
+ const rows=shown.map(o=>`<div class="order-row"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join("");
  $("app").innerHTML=`<div class="row"><div><h1>Ordini</h1><div class="muted">Crea o modifica gli ordini anche quando sei fuori.</div></div><button class="primary" onclick="newOrder()">＋ Nuovo</button></div>
- <div class="card">${orders.length?orders.map(o=>`<div class="order-row"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join(""):`<div class="empty">Nessun ordine ancora.</div>`}</div>`}
+ <div class="card"><div class="muted" style="margin-bottom:8px">Visualizza:</div><div class="actions" style="margin-top:0">${filterButtons}</div></div>
+ <div class="card">${rows||'<div class="empty">Nessun ordine in questa visualizzazione.</div>'}</div>`;
+}
+function setOrderFilter(filter){orderFilter=filter;home()}
 function customerOptions(){return clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||"")}</option>`).join("")}
 function nextNumber(){return Math.max(1000,...orders.map(o=>+o.order_number||0))+1}
 function newOrder(){
