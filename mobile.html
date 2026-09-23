@@ -60,8 +60,13 @@ function newOrder(){
  editingId=null;
  $("app").innerHTML=`<div class="row"><h1>Nuovo ordine #${nextNumber()}</h1><button onclick="home()">← Indietro</button></div>
  <div class="card">
- <label>👤 Cliente *<input id="customer" list="customers" placeholder="Nome cliente"><datalist id="customers">${customerOptions()}</datalist></label>
+ <label>👤 Cliente *
+ <div style="display:flex;gap:8px;align-items:stretch">
+  <input id="customer" list="customers" placeholder="Nome cliente" style="flex:1;min-width:0"><button type="button" onclick="newClient()">＋ Nuovo</button>
+ </div>
+ <datalist id="customers">${customerOptions()}</datalist></label>
  <label>Telefono / WhatsApp<input id="phone" placeholder="Numero"></label>
+ <div id="new-client-box"></div>
  <div class="grid"><label>📅 Data consegna<input id="delivery" type="date"></label><label>Stato<select id="status"><option>Nuovo</option><option>In lavorazione</option><option>In attesa approvazione</option><option>Pronto</option></select></label></div>
  </div>
  <div class="card"><div class="row"><div><h2 style="margin:0">🧾 Articoli</h2><div class="muted">Puoi inserirne più di uno.</div></div><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
@@ -69,6 +74,33 @@ function newOrder(){
  $("customer").addEventListener("input",fillPhone);addItem();
 }
 function fillPhone(){const c=clients.find(x=>x.name.toLowerCase()===$("customer").value.trim().toLowerCase());if(c)$("phone").value=c.phone||""}
+async function newClient(){
+ const box=$("new-client-box");
+ box.innerHTML=`<div class="article" style="margin-top:8px">
+  <b>👤 Nuovo cliente</b>
+  <label style="margin-top:10px">Nome e cognome *<input id="new-client-name" placeholder="Es. Maria Rossi"></label>
+  <label>📱 Telefono / WhatsApp *<input id="new-client-phone" type="tel" placeholder="Es. 333 1234567"></label>
+  <div class="actions"><button class="primary" type="button" onclick="saveNewClient()">💾 Salva cliente</button><button type="button" onclick='$("new-client-box").innerHTML=""'>Annulla</button></div>
+ </div>`;
+ $("new-client-name").focus();
+}
+async function saveNewClient(){
+ try{
+  const name=$("new-client-name").value.trim(),phone=$("new-client-phone").value.trim();
+  if(!name||!phone)return alert("Inserisci nome e numero di telefono.");
+  const existing=clients.find(c=>c.name.trim().toLowerCase()===name.toLowerCase());
+  if(existing){
+   const r=await sb.from("clients").update({phone}).eq("id",existing.id);if(r.error)throw r.error;
+   await load();$("customer").value=existing.name;$("phone").value=phone;
+  }else{
+   const r=await sb.from("clients").insert({name,phone}).select().single();if(r.error)throw r.error;
+   clients.push(r.data);clients.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+   $("customer").value=r.data.name;$("phone").value=r.data.phone||"";
+   const dl=$("customers");if(dl)dl.innerHTML=customerOptions();
+  }
+  $("new-client-box").innerHTML="";toast("Cliente salvato 💚");
+ }catch(e){fail(e)}
+}
 function addItem(data={}){
  const el=document.createElement("div");el.className="article";el.dataset.id=uid();
  el.innerHTML=`<div class="article-head"><b>Articolo</b><button type="button" onclick="this.closest('.article').remove();calc()">🗑️</button></div>
@@ -126,7 +158,12 @@ async function saveOrder(){
 async function editOrder(id){
  editingId=id;const o=orders.find(x=>x.id===id);if(!o)return;
  $("app").innerHTML=`<div class="row"><h1>Modifica #${o.order_number}</h1><button onclick="home()">← Indietro</button></div>
- <div class="card"><label>👤 Cliente *<input id="customer" list="customers" value="${esc(o.customer_name)}"><datalist id="customers">${customerOptions()}</datalist></label><label>Telefono / WhatsApp<input id="phone" value="${esc(o.customer_phone||"")}"></label>
+ <div class="card"><label>👤 Cliente *
+ <div style="display:flex;gap:8px;align-items:stretch">
+  <input id="customer" list="customers" value="${esc(o.customer_name)}" style="flex:1;min-width:0"><button type="button" onclick="newClient()">＋ Nuovo</button>
+ </div>
+ <datalist id="customers">${customerOptions()}</datalist></label><label>Telefono / WhatsApp<input id="phone" value="${esc(o.customer_phone||"")}"></label>
+ <div id="new-client-box"></div>
  <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
  <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div></div>`;
