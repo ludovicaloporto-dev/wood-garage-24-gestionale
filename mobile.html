@@ -151,6 +151,23 @@ async function shareGraphic(orderId){
   else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast("Grafica pronta da condividere");}
  }catch(e){if(e?.name!=="AbortError")fail(e)}
 }
+async function deleteOrderMobile(id){
+ try{
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  if(o.status==="Consegnato")return alert("Un ordine consegnato non può essere eliminato da qui.");
+  if(!confirm("Eliminare l'ordine #"+o.order_number+"? Gli articoli torneranno nel magazzino."))return;
+  for(const item of(o.items||[])){
+   if(item.product_id){
+    const p=products.find(x=>x.id===item.product_id);
+    if(p){const r=await sb.from("products").update({quantity:+p.quantity+(+item.quantity||0)}).eq("id",p.id);if(r.error)throw r.error;}
+   }
+   if(item.original_graphic_path){try{await sb.storage.from("wood-garage-grafiche").remove([item.original_graphic_path])}catch(e){}}
+  }
+  const ir=await sb.from("order_items").delete().eq("order_id",id);if(ir.error)throw ir.error;
+  const r=await sb.from("orders").delete().eq("id",id);if(r.error)throw r.error;
+  await load();toast("Ordine eliminato e magazzino ripristinato");home();
+ }catch(e){fail(e)}
+}
 async function createQuotePdf(orderId){
  try{
   const o=orders.find(x=>x.id===orderId);if(!o)return;if(!window.jspdf?.jsPDF)throw new Error("Generatore PDF non disponibile. Riprova tra poco.");
@@ -218,7 +235,7 @@ async function editOrder(id){
  <div id="new-client-box"></div>
  <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
- <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button></div></div>`;
+ <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button><button class="danger" onclick="deleteOrderMobile('${o.id}')">🗑️ Elimina ordine</button></div></div>`;
  $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
 }
 (async function start(){try{const r=await sb.auth.getSession();if(r.data.session){user=r.data.session.user;await boot()}else auth()}catch(e){auth()}})();
