@@ -151,7 +151,38 @@ function renderOrderTable(){const q=($("searchOrder")?.value||"").toLowerCase(),
 function toggleOrderSelection(id,checked){const s=window._selectedOrders||(window._selectedOrders=new Set());checked?s.add(id):s.delete(id)}
 function selectAllOpenOrders(){window._selectedOrders=new Set(db.orders.filter(o=>o.status!=="Consegnato").map(o=>o.id));renderOrderTable()}
 function clearOrderSelection(){window._selectedOrders=new Set();renderOrderTable()}
-function printSelectedOrders(){const ids=[...(window._selectedOrders||new Set())];if(!ids.length)return alert("Seleziona almeno un ordine aperto.");const rows=ids.map(id=>db.orders.find(o=>o.id===id)).filter(Boolean);const w=window.open("","_blank");if(!w)return alert("Il browser ha bloccato la finestra di stampa. Consenti i popup per il gestionale.");w.document.write(`<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Ordini Wood Garage 24</title><style>body{font-family:Arial,sans-serif;color:#111;margin:0}.print-order{break-inside:avoid-page;border-bottom:2px solid #111;padding:0 0 18px;margin:0 0 18px}.head{display:flex;justify-content:space-between;border-bottom:1px solid #ccc;padding-bottom:8px;margin-bottom:10px}.title{font-size:20px;font-weight:800}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px;border-bottom:1px solid #eee;vertical-align:top}.right{text-align:right}.total{font-size:18px;font-weight:800;margin-top:10px}@page{size:A4;margin:14mm}</style></head><body>${rows.map(o=>`<section class="print-order"><div class="head"><div><div class="title">WOOD GARAGE 24 — Ordine #${esc(o.number)}</div><div class="muted">Cliente: ${esc(o.customer)} ${o.phone?`· ${esc(o.phone)}`:""}</div></div><div class="muted">Ordine: ${esc(o.date||"")}<br>Consegna: ${esc(o.delivery||"non indicata")}</div></div><div class="muted">Stato: <b>${esc(o.status)}</b></div><table><tr><th>Articolo</th><th>Personalizzazione</th><th>Qtà</th><th class="right">Prezzo</th><th class="right">Totale</th></tr>${o.items.map(i=>`<tr><td><b>${esc(i.productName)}</b></td><td>${esc(i.notes||"—")}</td><td>${i.qty}</td><td class="right">${money(i.sell)}</td><td class="right">${money(i.sell*i.qty)}</td></tr>`).join("")}</table><div class="total">Totale: ${money(o.total)} · Pagato: ${money(o.paid)} · Da incassare: ${money(Math.max(0,o.total-o.paid))}</div></section>`).join("")}</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),350)}
+function printSelectedOrders(){
+ const ids=[...(window._selectedOrders||new Set())];
+ if(!ids.length)return alert("Seleziona almeno un ordine aperto.");
+ const rows=ids.map(id=>db.orders.find(o=>o.id===id)).filter(Boolean);
+ const printHtml=`<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Ordini Wood Garage 24</title><style>
+ body{font-family:Arial,sans-serif;color:#111;background:#fff;margin:0}
+ .print-order{break-inside:avoid-page;border-bottom:2px solid #111;padding:0 0 18px;margin:0 0 18px}
+ .head{display:flex;justify-content:space-between;border-bottom:1px solid #ccc;padding-bottom:8px;margin-bottom:10px}
+ .title{font-size:20px;font-weight:800}.muted{color:#666;font-size:12px}
+ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px;border-bottom:1px solid #eee;vertical-align:top}
+ .right{text-align:right}.total{font-size:18px;font-weight:800;margin-top:10px}
+ .print-actions{margin:20px 0;text-align:center}.print-actions button{padding:10px 16px;font-weight:700}
+ @page{size:A4;margin:14mm}
+ @media print{.print-actions{display:none!important}}
+ </style></head><body>
+ <div class="print-actions"><button type="button" onclick="window.print()">🖨️ Stampa</button><button type="button" onclick="window.close()">Chiudi</button></div>
+ ${rows.map(o=>`<section class="print-order">
+ <div class="head"><div><div class="title">WOOD GARAGE 24 — Ordine #${esc(o.number)}</div><div class="muted">Cliente: ${esc(o.customer)} ${o.phone?`· ${esc(o.phone)}`:""}</div></div>
+ <div class="muted">Ordine: ${esc(o.date||"")}<br>Consegna: ${esc(o.delivery||"non indicata")}</div></div>
+ <div class="muted">Stato: <b>${esc(o.status)}</b></div>
+ <table><tr><th>Articolo</th><th>Personalizzazione</th><th>Qtà</th><th class="right">Prezzo</th><th class="right">Totale</th></tr>
+ ${o.items.map(i=>`<tr><td><b>${esc(i.productName)}</b></td><td>${esc(i.notes||"—")}</td><td>${i.qty}</td><td class="right">${money(i.sell)}</td><td class="right">${money(i.sell*i.qty)}</td></tr>`).join("")}
+ </table><div class="total">Totale: ${money(o.total)} · Pagato: ${money(o.paid)} · Da incassare: ${money(Math.max(0,o.total-o.paid))}</div>
+ </section>`).join("")}
+ </body></html>`;
+ const w=window.open("","_blank");
+ if(!w)return alert("Il browser ha bloccato la finestra. Consenti i popup per il gestionale.");
+ w.document.open();
+ w.document.write(printHtml);
+ w.document.close();
+ w.focus();
+}
 function nextNumber(){return Math.max(1000,...db.orders.map(o=>+o.number||0))+1}
 function customerOptions(){return db.clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||"")}</option>`).join("")}
 function newOrder(){
