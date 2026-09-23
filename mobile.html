@@ -56,7 +56,7 @@ function home(){
  const filters=["Aperti","Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato","Tutti"];
  const shown=orders.filter(o=>orderFilter==="Tutti" ? true : orderFilter==="Aperti" ? o.status!=="Consegnato" : o.status===orderFilter);
  const filterButtons=filters.map(f=>`<button class="${f===orderFilter?"primary":""}" onclick="setOrderFilter('${f}')">${f}</button>`).join("");
- const rows=shown.map(o=>`<div class="order-row"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join("");
+ const rows=shown.map(o=>`<div class="order-row" onclick="editOrder('${o.id}')" style="cursor:pointer"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join("");
  $("app").innerHTML=`<div class="row"><div><h1>Ordini</h1><div class="muted">Crea o modifica gli ordini anche quando sei fuori.</div></div><button class="primary" onclick="newOrder()">＋ Nuovo</button></div>
  <div class="card"><div class="muted" style="margin-bottom:8px">Visualizza:</div><div class="actions" style="margin-top:0">${filterButtons}</div></div>
  <div class="card">${rows||'<div class="empty">Nessun ordine in questa visualizzazione.</div>'}</div>`;
@@ -111,6 +111,7 @@ async function saveNewClient(){
 }
 function addItem(data={}){
  const el=document.createElement("div");el.className="article";el.dataset.id=uid();
+ if(data.graphicPath)el.dataset.graphicPath=data.graphicPath;
  el.innerHTML=`<div class="article-head"><b>Articolo</b><button type="button" onclick="this.closest('.article').remove();calc()">🗑️</button></div>
  <label style="margin-top:10px">Articolo<select class="prod"><option value="">Seleziona articolo</option>${products.map(p=>`<option value="${p.id}" ${data.productId===p.id?"selected":""}>${esc(p.name)}</option>`).join("")}</select></label>
  <div class="grid"><label>Quantità<input class="qty" type="number" min="1" value="${data.qty||1}" oninput="calc()"></label><label>💰 Prezzo cliente €<input class="sell" type="text" inputmode="decimal" value="${data.sell??""}" placeholder="0,00" oninput="calc()"></label></div>
@@ -128,10 +129,11 @@ function previewGraphic(el){
  const rd=new FileReader();rd.onload=()=>{el.dataset.graphicData=rd.result;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${rd.result}"><div class="wm">WOOD GARAGE 24</div></div>`};rd.readAsDataURL(f)
 }
 async function loadExistingGraphic(el,path){
- try{const r=await sb.storage.from("wood-garage-grafiche").createSignedUrl(path,3600);if(r.error||!r.data?.signedUrl)return;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${r.data.signedUrl}"><div class="wm">WOOD GARAGE 24</div></div><div class="muted">Grafica attuale · scegli un nuovo file per sostituirla</div>`}catch(e){}
+ try{
+  el.dataset.graphicPath=path;const r=await sb.storage.from("wood-garage-grafiche").createSignedUrl(path,3600);if(r.error||!r.data?.signedUrl)return;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${r.data.signedUrl}"><div class="wm">WOOD GARAGE 24</div></div><div class="muted">Grafica attuale · scegli un nuovo file per sostituirla</div>`}catch(e){}
 }
 function collect(){
- return [...document.querySelectorAll(".article")].map(a=>{const p=products.find(x=>x.id===a.querySelector(".prod").value);return{productId:p?.id||null,productName:p?.name||"Altro / nuovo",qty:Math.max(1,num(a.querySelector(".qty").value)),sell:Math.max(0,num(a.querySelector(".sell").value)),cost:+(p?.purchase_cost||0),notes:a.querySelector(".notes").value.trim(),extra:a.querySelector(".extra").value.trim(),graphicData:a.dataset.graphicData||null}}).filter(x=>x.productName&&x.sell>=0)}
+ return [...document.querySelectorAll(".article")].map(a=>{const p=products.find(x=>x.id===a.querySelector(".prod").value);return{productId:p?.id||null,productName:p?.name||"Altro / nuovo",qty:Math.max(1,num(a.querySelector(".qty").value)),sell:Math.max(0,num(a.querySelector(".sell").value)),cost:+(p?.purchase_cost||0),notes:a.querySelector(".notes").value.trim(),extra:a.querySelector(".extra").value.trim(),graphicData:a.dataset.graphicData||null,graphicPath:a.dataset.graphicPath||null}}).filter(x=>x.productName&&x.sell>=0)}
 async function uploadGraphic(orderId,itemId,data){
  if(!data)return null;const m=data.match(/^data:(image\/[^;]+);base64,(.+)$/);if(!m)return null;
  const mime=m[1],bytes=Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0)),ext=mime.includes("png")?"png":mime.includes("webp")?"webp":"jpg";
@@ -156,7 +158,7 @@ async function saveOrder(){
   const c=clients.find(x=>x.name.toLowerCase()===customer.toLowerCase());
   if(!c){const cr=await sb.from("clients").insert({name:customer,phone:$("phone").value.trim()});if(cr.error)throw cr.error}
   for(const item of items){
-   const iid=uid(),path=await uploadGraphic(id,iid,item.graphicData);
+   const iid=uid(),path=await uploadGraphic(id,iid,item.graphicData)||item.graphicPath||null;
    const ir=await sb.from("order_items").insert({id:iid,order_id:id,product_id:item.productId,product_name:item.productName,quantity:item.qty,purchase_cost_unit:item.cost,public_price_unit:item.sell,personalization:item.notes||null,original_graphic_path:path});if(ir.error)throw ir.error;
    if(item.productId){const p=products.find(x=>x.id===item.productId);if(p){const q=Math.max(0,+p.quantity-(+item.qty));const ur=await sb.from("products").update({quantity:q}).eq("id",p.id);if(ur.error)throw ur.error}}
   }
@@ -172,7 +174,7 @@ async function editOrder(id){
  </div>
  <datalist id="customers">${customerOptions()}</datalist></label><label>Telefono / WhatsApp<input id="phone" value="${esc(o.customer_phone||"")}"></label>
  <div id="new-client-box"></div>
- <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
+ <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
  <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div></div>`;
  $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
