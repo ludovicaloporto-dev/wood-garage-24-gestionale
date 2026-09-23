@@ -204,7 +204,7 @@ async function saveOrder(){
    const ir=await sb.from("order_items").insert({id:iid,order_id:id,product_id:item.productId,product_name:item.productName,quantity:item.qty,purchase_cost_unit:item.cost,public_price_unit:item.sell,personalization:item.notes||null,original_graphic_path:path});if(ir.error)throw ir.error;
    if(item.productId){const p=products.find(x=>x.id===item.productId);if(p){const q=Math.max(0,+p.quantity-(+item.qty));const ur=await sb.from("products").update({quantity:q}).eq("id",p.id);if(ur.error)throw ur.error}}
   }
-  await load();toast(editingId?"Ordine modificato":"Ordine salvato");home();
+  await load();toast(editingId?"Ordine modificato":"Ordine salvato");editOrder(id);
  }catch(e){fail(e)}
 }
 async function editOrder(id){
