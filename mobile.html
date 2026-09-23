@@ -116,7 +116,7 @@ function addItem(data={}){
  <div class="grid"><label>Quantità<input class="qty" type="number" min="1" value="${data.qty||1}" oninput="calc()"></label><label>💰 Prezzo cliente €<input class="sell" type="text" inputmode="decimal" value="${data.sell??""}" placeholder="0,00" oninput="calc()"></label></div>
  <label>✏️ Personalizzazione<textarea class="notes" placeholder="Nome, scritta, colori...">${esc(data.notes||"")}</textarea></label>
  <label>📝 Note<textarea class="extra" placeholder="Eventuali note per la lavorazione...">${esc(data.extra||"")}</textarea></label>
- <label>🖼️ Grafica / foto<input class="graphic" type="file" accept="image/*" capture="environment"></label>
+ <label>🖼️ Grafica / foto<input class="graphic" type="file" accept="image/*"></label>
  <div class="preview-area"></div>`;
  $("items").appendChild(el);
  el.querySelector(".graphic").addEventListener("change",()=>previewGraphic(el));
