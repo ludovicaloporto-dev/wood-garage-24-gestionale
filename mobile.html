@@ -24,6 +24,7 @@ button{border:1px solid #ccc;background:#fff;border-radius:11px;padding:11px 13p
 <header><img src="logo.png"><div><div class="brand">WOOD GARAGE 24</div><div class="sub">Inserimento ordini · mobile</div></div></header>
 <main><div id="app"></div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
 "use strict";
 const SUPABASE_URL="https://fwrnklssnxnfiigiswzu.supabase.co";
@@ -123,6 +124,47 @@ function addItem(data={}){
  el.querySelector(".graphic").addEventListener("change",()=>previewGraphic(el));
  if(data.graphicPath)loadExistingGraphic(el,data.graphicPath);
 }
+async function getGraphicBlob(path){
+ if(!path)throw new Error("Questo articolo non ha una grafica salvata.");
+ const r=await sb.storage.from("wood-garage-grafiche").createSignedUrl(path,3600);
+ if(r.error||!r.data?.signedUrl)throw new Error("Non riesco ad aprire la grafica.");
+ const resp=await fetch(r.data.signedUrl);if(!resp.ok)throw new Error("Errore nel caricamento della grafica.");
+ return {blob:await resp.blob(),url:r.data.signedUrl};
+}
+async function makeWatermarkedFile(path,name){
+ const {blob}=await getGraphicBlob(path),src=URL.createObjectURL(blob);
+ try{
+  const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=src;});
+  const max=1800,scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement("canvas");
+  canvas.width=Math.round(img.naturalWidth*scale);canvas.height=Math.round(img.naturalHeight*scale);
+  const ctx=canvas.getContext("2d");ctx.drawImage(img,0,0,canvas.width,canvas.height);ctx.save();ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(-22*Math.PI/180);
+  const fs=Math.max(28,Math.round(Math.min(canvas.width,canvas.height)/10));ctx.font="800 "+fs+"px Arial";ctx.textAlign="center";ctx.textBaseline="middle";ctx.lineWidth=Math.max(3,Math.round(fs/10));
+  ctx.strokeStyle="rgba(0,0,0,.65)";ctx.strokeText("WOOD GARAGE 24",0,0);ctx.fillStyle="rgba(255,255,255,.82)";ctx.fillText("WOOD GARAGE 24",0,0);ctx.restore();
+  const out=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",.92));return new File([out],name||"grafica_WoodGarage24.jpg",{type:"image/jpeg"});
+ }finally{URL.revokeObjectURL(src)}
+}
+async function shareGraphic(orderId){
+ try{
+  const o=orders.find(x=>x.id===orderId),item=(o?.items||[]).find(i=>i.original_graphic_path);if(!item)return alert("Questo ordine non ha una grafica salvata.");
+  const file=await makeWatermarkedFile(item.original_graphic_path,"Ordine_"+o.order_number+"_grafica.jpg");
+  if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Wood Garage 24 · Ordine #"+o.order_number,text:"Grafica con filigrana · "+o.customer_name,files:[file]});
+  else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast("Grafica pronta da condividere");}
+ }catch(e){if(e?.name!=="AbortError")fail(e)}
+}
+async function createQuotePdf(orderId){
+ try{
+  const o=orders.find(x=>x.id===orderId);if(!o)return;if(!window.jspdf?.jsPDF)throw new Error("Generatore PDF non disponibile. Riprova tra poco.");
+  const {jsPDF}=window.jspdf,doc=new jsPDF();doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("WOOD GARAGE 24",20,22);
+  doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("PREVENTIVO",20,31);doc.text("Ordine #"+o.order_number,150,22);doc.text("Data: "+(o.order_date||new Date().toISOString().slice(0,10)),150,29);
+  doc.text("Cliente: "+String(o.customer_name||""),20,45);if(o.customer_phone)doc.text("Telefono: "+String(o.customer_phone),20,52);
+  let y=66;doc.setFont("helvetica","bold");doc.text("Articolo",20,y);doc.text("Q.tà",125,y);doc.text("Prezzo",145,y);doc.text("Totale",175,y);doc.setFont("helvetica","normal");y+=8;
+  for(const i of(o.items||[])){const lines=doc.splitTextToSize(String(i.product_name||"Articolo"),95);doc.text(lines,20,y);doc.text(String(i.quantity),125,y);doc.text(money(i.public_price_unit),145,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),175,y);y+=Math.max(7,lines.length*5)+4;if(i.personalization){doc.setFontSize(9);doc.text("Personalizzazione: "+String(i.personalization),20,y);doc.setFontSize(11);y+=7;}if(y>270){doc.addPage();y=20;}}
+  doc.line(20,y,190,y);y+=10;doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("Totale preventivo: "+money(o.total),20,y);y+=10;doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Preventivo Wood Garage 24 · Importo riferito all'ordine indicato.",20,y);
+  const file=new File([doc.output("blob")],"Preventivo_Ordine_"+o.order_number+".pdf",{type:"application/pdf"});
+  if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Preventivo Wood Garage 24 · Ordine #"+o.order_number,text:"Preventivo per "+o.customer_name,files:[file]});
+  else{const url=URL.createObjectURL(file),a=document.createElement("a");a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Preventivo PDF creato");}
+ }catch(e){if(e?.name!=="AbortError")fail(e)}
+}
 function calc(){let t=0;document.querySelectorAll(".article").forEach(a=>t+=num(a.querySelector(".qty").value)*num(a.querySelector(".sell").value));$("total").textContent=money(t)}
 function previewGraphic(el){
  const f=el.querySelector(".graphic").files[0];if(!f)return;
@@ -176,7 +218,7 @@ async function editOrder(id){
  <div id="new-client-box"></div>
  <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
- <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div></div>`;
+ <div class="card"><div class="row"><div><span class="muted">Totale</span><div id="total" class="big">€ 0,00</div></div><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button></div></div>`;
  $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
 }
 (async function start(){try{const r=await sb.auth.getSession();if(r.data.session){user=r.data.session.user;await boot()}else auth()}catch(e){auth()}})();
