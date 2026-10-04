@@ -73,7 +73,8 @@ function warehouse(){
   $("app").innerHTML=`<div class="row"><div><h1>📦 Magazzino</h1><div class="muted">Controlla subito quante unità hai disponibili.</div></div><button onclick="home()">← Ordini</button></div>
   <div class="card"><label>🔎 Cerca articolo<input id="warehouse-search" value="${esc(q)}" placeholder="Es. borraccia, tazza..." oninput="window._warehouseQuery=this.value;warehouse()"></label></div>
   <div class="card">${rows||'<div class="empty">Nessun articolo trovato.</div>'}</div>`;
-}\nfunction setOrderFilter(filter){orderFilter=filter;home()}
+}
+function setOrderFilter(filter){orderFilter=filter;home()}
 function customerOptions(){return clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||"")}</option>`).join("")}
 function nextNumber(){return Math.max(1000,...orders.map(o=>+o.order_number||0))+1}
 function newOrder(){
