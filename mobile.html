@@ -58,11 +58,22 @@ function home(){
  const shown=orders.filter(o=>orderFilter==="Tutti" ? true : orderFilter==="Aperti" ? o.status!=="Consegnato" : o.status===orderFilter);
  const filterButtons=filters.map(f=>`<button class="${f===orderFilter?"primary":""}" onclick="setOrderFilter('${f}')">${f}</button>`).join("");
  const rows=shown.map(o=>`<div class="order-row" onclick="editOrder('${o.id}')" style="cursor:pointer"><div class="row"><div><b>Ordine #${esc(o.order_number)}</b><div class="muted">${esc(o.customer_name)} · ${o.delivery_date||"consegna da concordare"}</div></div><span class="badge">${esc(o.status)}</span></div><div class="row" style="margin-top:8px"><b>${money(o.total)}</b><button onclick="editOrder('${o.id}')">✏️ Modifica</button></div></div>`).join("");
- $("app").innerHTML=`<div class="row"><div><h1>Ordini</h1><div class="muted">Crea o modifica gli ordini anche quando sei fuori.</div></div><button class="primary" onclick="newOrder()">＋ Nuovo</button></div>
+ $("app").innerHTML=`<div class="row"><div><h1>Ordini</h1><div class="muted">Crea o modifica gli ordini anche quando sei fuori.</div></div><div class="actions" style="margin-top:0"><button onclick="warehouse()">📦 Magazzino</button><button class="primary" onclick="newOrder()">＋ Nuovo</button></div></div>
  <div class="card"><div class="muted" style="margin-bottom:8px">Visualizza:</div><div class="actions" style="margin-top:0">${filterButtons}</div></div>
  <div class="card">${rows||'<div class="empty">Nessun ordine in questa visualizzazione.</div>'}</div>`;
 }
-function setOrderFilter(filter){orderFilter=filter;home()}
+function warehouse(){
+  const q=window._warehouseQuery||"";
+  const shown=products.filter(p=>String(p.name||"").toLowerCase().includes(q.toLowerCase()));
+  const rows=shown.map(p=>{
+    const qty=Number(p.quantity)||0;
+    const cls=qty<=0?"color:#b00020":qty<=5?"color:#b26a00":"";
+    return `<div class="order-row"><div class="row"><div><b>${esc(p.name)}</b></div><span class="badge" style="${cls}">Disponibili: ${qty}</span></div></div>`;
+  }).join("");
+  $("app").innerHTML=`<div class="row"><div><h1>📦 Magazzino</h1><div class="muted">Controlla subito quante unità hai disponibili.</div></div><button onclick="home()">← Ordini</button></div>
+  <div class="card"><label>🔎 Cerca articolo<input id="warehouse-search" value="${esc(q)}" placeholder="Es. borraccia, tazza..." oninput="window._warehouseQuery=this.value;warehouse()"></label></div>
+  <div class="card">${rows||'<div class="empty">Nessun articolo trovato.</div>'}</div>`;
+}\nfunction setOrderFilter(filter){orderFilter=filter;home()}
 function customerOptions(){return clients.map(c=>`<option value="${esc(c.name)}">${esc(c.phone||"")}</option>`).join("")}
 function nextNumber(){return Math.max(1000,...orders.map(o=>+o.order_number||0))+1}
 function newOrder(){
