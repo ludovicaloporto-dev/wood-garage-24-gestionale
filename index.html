@@ -373,7 +373,22 @@ function renderCashTable(){
  $("cashTable").innerHTML=rows.length?"<table><tr><th>Data</th><th>Tipo</th><th>Descrizione</th><th class=\"right\">Importo</th></tr>"+pageRows.map(x=>"<tr><td>"+x.date+"</td><td>"+(x.type==="in"?"Entrata":"Uscita")+"</td><td>"+esc(x.desc)+"</td><td class=\"right\">"+money(x.amount)+"</td></tr>").join("")+"</table>"+pager:"<table><tr><td colspan=4 class=empty>Nessun movimento.</td></tr></table>";
 }
 function changeCashPage(delta){cashPage=Math.max(1,cashPage+delta);renderCashTable()}async function movement(type){try{const a=+prompt(type==="in"?"Importo entrata":"Importo uscita","0");if(!(a>0))return;const r=await sb.from("cash_movements").insert({movement_type:type==="in"?"Entrata":"Uscita",amount:a,movement_date:new Date().toISOString().slice(0,10),description:prompt("Descrizione","")||"Movimento",created_by:currentUser.id});if(r.error)throw r.error;await loadOnline();cash();toast("Movimento registrato")}catch(e){fail(e)}}
-function clients(){$("app").innerHTML=`<div class="row"><div><h1>Clienti</h1><div class="muted">Anagrafica clienti.</div></div><button type="button" class="primary" onclick="addClient()">＋ Nuovo cliente</button></div><div class="card scroll"><table><tr><th>Cliente</th><th>Telefono</th><th>Ordini</th><th>Vendite</th><th>Da incassare</th></tr>${db.clients.map(c=>{const os=db.orders.filter(o=>o.customer.toLowerCase()===c.name.toLowerCase()),sales=os.reduce((a,o)=>a+o.total,0),due=os.reduce((a,o)=>a+Math.max(0,o.total-o.paid),0);return`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone||"")}</td><td>${os.length}</td><td>${money(sales)}</td><td>${money(due)}</td></tr>`}).join("")||"<tr><td colspan=5 class=empty>Nessun cliente.</td></tr>"}</table></div>`}
+function clients(){$("app").innerHTML=`<div class="row"><div><h1>Clienti</h1><div class="muted">Anagrafica clienti.</div></div><button type="button" class="primary" onclick="addClient()">＋ Nuovo cliente</button></div><div class="card scroll"><table><tr><th>Cliente</th><th>Telefono</th><th>Ordini</th><th>Vendite</th><th>Da incassare</th><th></th></tr>${db.clients.map(c=>{const os=db.orders.filter(o=>o.customer.toLowerCase()===c.name.toLowerCase()),sales=os.reduce((a,o)=>a+o.total,0),due=os.reduce((a,o)=>a+Math.max(0,o.total-o.paid),0);return`<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone||"")}</td><td>${os.length}</td><td>${money(sales)}</td><td>${money(due)}</td><td><button type="button" onclick="editClient('${c.id}')">✏️ Modifica</button></td></tr>`}).join("")||"<tr><td colspan=6 class=empty>Nessun cliente.</td></tr>"}</table></div>`}
+async function editClient(id){
+ try{
+  const c=db.clients.find(x=>x.id===id);if(!c)return;
+  const name=prompt("Nome e cognome",c.name);if(name===null)return;
+  const phone=prompt("Telefono / WhatsApp",c.phone||"");if(phone===null)return;
+  const newName=name.trim();if(!newName)return alert("Il nome non può essere vuoto.");
+  const r=await sb.from("clients").update({name:newName,phone:phone.trim()}).eq("id",id);if(r.error)throw r.error;
+  if(c.name.trim().toLowerCase()!==newName.toLowerCase()){
+   const or=await sb.from("orders").update({customer_name:newName,customer_phone:phone.trim()}).eq("customer_name",c.name);if(or.error)throw or.error;
+  }else{
+   const or=await sb.from("orders").update({customer_phone:phone.trim()}).eq("customer_name",c.name);if(or.error)throw or.error;
+  }
+  await loadOnline();clients();toast("Cliente modificato");
+ }catch(e){fail(e)}
+}
 async function addClient(){try{const name=prompt("Nome e cognome");if(!name)return;const phone=prompt("Telefono / WhatsApp","")||"";const r=await sb.from("clients").insert({name:name.trim(),phone});if(r.error)throw r.error;await loadOnline();clients();toast("Cliente aggiunto")}catch(e){fail(e)}}
 function backup(){$("app").innerHTML=`<h1>Dati</h1><div class="card"><h2>Account online</h2><p class="muted">Account: ${esc(currentUser?.email||"")}</p><button type="button" onclick="signout()">🚪 Esci</button></div><div class="card"><h2>Database</h2><p class="muted">Il database è online su Supabase. I dati principali vengono sincronizzati quando accedi con lo stesso account.</p></div>`}
 
