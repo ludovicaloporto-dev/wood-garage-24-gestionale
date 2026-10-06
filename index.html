@@ -272,12 +272,22 @@ async function saveEditedOrder(){
   const subtotal=items.reduce((a,x)=>a+x.qty*x.sell,0),discount=Math.min(Math.max(0,num($("odiscount").value)),subtotal),total=Math.max(0,subtotal-discount),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);
   const oldItems=o.items.slice();
 
-  // Ripristina prima le quantità precedentemente scalate.
+  // Aggiorna il magazzino usando la differenza tra vecchie e nuove quantità.
+  // Esempio: ordine 2 -> modifica a 1 = +1 disponibile in magazzino.
+  const stockDelta={};
   for(const i of oldItems){
-   if(i.productId){
-    const p=db.products.find(x=>x.id===i.productId);
-    if(p){const r=await sb.from("products").update({quantity:p.qty+i.qty}).eq("id",p.id);if(r.error)throw r.error;}
-   }
+   if(i.productId)stockDelta[i.productId]=(stockDelta[i.productId]||0)-i.qty;
+  }
+  for(const i of items){
+   if(i.productId && i.productId!=="__new")stockDelta[i.productId]=(stockDelta[i.productId]||0)+i.qty;
+  }
+  for(const [productId,delta] of Object.entries(stockDelta)){
+   if(!delta)continue;
+   const pr=await sb.from("products").select("quantity").eq("id",productId).single();
+   if(pr.error)throw pr.error;
+   const newQty=Math.max(0,(+pr.data.quantity||0)-delta);
+   const sr=await sb.from("products").update({quantity:newQty}).eq("id",productId);
+   if(sr.error)throw sr.error;
   }
 
   const ur=await sb.from("orders").update({
