@@ -163,6 +163,28 @@ async function shareGraphic(orderId){
   else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);toast("Grafica pronta da condividere");}
  }catch(e){if(e?.name!=="AbortError")fail(e)}
 }
+async function registerPaymentMobile(id){
+ try{
+  const o=orders.find(x=>x.id===id);if(!o)return;
+  const remaining=Math.max(0,(+o.total||0)-(+o.paid||0));
+  if(remaining<=0)return alert("Questo ordine è già completamente pagato.");
+  const raw=prompt("Quanto ha pagato il cliente?\\n\\nDa incassare: "+money(remaining),String(remaining).replace(".",","));
+  if(raw===null)return;
+  const amount=num(raw);
+  if(!(amount>0))return alert("Inserisci un importo valido.");
+  if(amount>remaining)return alert("L'importo non può superare il saldo da incassare ("+money(remaining)+").");
+  const date=new Date().toISOString().slice(0,10);
+  const pr=await sb.from("payments").insert({order_id:id,amount,payment_date:date});
+  if(pr.error)throw pr.error;
+  const cr=await sb.from("cash_movements").insert({movement_type:"Entrata",amount,movement_date:date,description:`Pagamento ordine #${o.order_number} — ${o.customer_name}`,order_id:id,created_by:user.id});
+  if(cr.error)throw cr.error;
+  const ur=await sb.from("orders").update({paid:(+o.paid||0)+amount}).eq("id",id);
+  if(ur.error)throw ur.error;
+  await load();
+  toast("Pagamento registrato: "+money(amount));
+  editOrder(id);
+ }catch(e){fail(e)}
+}
 async function deleteOrderMobile(id){
  try{
   const o=orders.find(x=>x.id===id);if(!o)return;
@@ -263,7 +285,7 @@ async function editOrder(id){
  <div id="new-client-box"></div>
  <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label><label>🎁 Sconto €<input id="odiscount" type="text" inputmode="decimal" value="${o.discount||0}" placeholder="0,00" oninput="calc()"></label></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
- <div class="card"><h3 style="margin-top:0">Riepilogo</h3><div id="sum" class="grid"></div><div class="actions"><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button><button class="danger" onclick="deleteOrderMobile('${o.id}')">🗑️ Elimina ordine</button></div></div>`;
+ <div class="card"><h3 style="margin-top:0">Riepilogo</h3><div id="sum" class="grid"></div><div class="card" style="margin:10px 0 0"><div class="row"><div><div class="muted">Già pagato</div><div class="big">${money(o.paid||0)}</div></div><div><div class="muted">Da incassare</div><div class="big">${money(Math.max(0,(+o.total||0)-(+o.paid||0)))}</div></div></div><button type="button" class="primary" style="width:100%;margin-top:10px" onclick="registerPaymentMobile('${o.id}')">💳 Registra pagamento</button></div><div class="actions"><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button><button class="danger" onclick="deleteOrderMobile('${o.id}')">🗑️ Elimina ordine</button></div></div>`;
  $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
 }
 (async function start(){try{const r=await sb.auth.getSession();if(r.data.session){user=r.data.session.user;await boot()}else auth()}catch(e){auth()}})();
