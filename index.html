@@ -32,7 +32,8 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;bor
 .modal{position:fixed;inset:0;background:#0007;z-index:40;display:flex;align-items:center;justify-content:center;padding:16px}.modal-box{background:#fff;border-radius:18px;max-width:760px;width:100%;max-height:90vh;overflow:auto;padding:18px}
 hr{border:0;border-top:1px solid #eee;margin:16px 0}
 @media(max-width:850px){.grid{grid-template-columns:1fr 1fr}.item-grid{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){header{padding:8px 12px}header img{height:45px;max-width:85px}.brand-title{font-size:15px}main{padding:11px}.grid,.grid2,.item-grid{grid-template-columns:1fr}.card{padding:13px}.big{font-size:22px}th,td{padding:8px}}\n@media print{body{background:#fff!important}header,#nav,button,input,select,textarea,.actions,.no-print{display:none!important}main{max-width:none!important;padding:0!important}.card{border:0!important;box-shadow:none!important;margin:0 0 12px!important;padding:8px!important}.print-order{break-inside:avoid-page;border-bottom:2px solid #111;padding:0 0 18px;margin:0 0 18px}.print-order:last-child{border-bottom:0}@page{size:A4;margin:14mm}}
+@media(max-width:560px){header{padding:8px 12px}header img{height:45px;max-width:85px}.brand-title{font-size:15px}main{padding:11px}.grid,.grid2,.item-grid{grid-template-columns:1fr}.card{padding:13px}.big{font-size:22px}th,td{padding:8px}}
+@media print{body{background:#fff!important}header,#nav,button,input,select,textarea,.actions,.no-print{display:none!important}main{max-width:none!important;padding:0!important}.card{border:0!important;box-shadow:none!important;margin:0 0 12px!important;padding:8px!important}.print-order{break-inside:avoid-page;border-bottom:2px solid #111;padding:0 0 18px;margin:0 0 18px}.print-order:last-child{border-bottom:0}@page{size:A4;margin:14mm}}
 </style>
 <style>
 .graphic-box{margin-top:12px;padding:12px;border:1px dashed #bbb;border-radius:12px;background:#fafafa}
@@ -47,12 +48,14 @@ hr{border:0;border-top:1px solid #eee;margin:16px 0}
 </header>
 <main>
 <nav id="nav"></nav>
-<section id="app"></section>
+<section id="app"><div class="card">Caricamento gestionale…</div></section>
 </main>
 <div id="modal" class="hidden"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js'"></script>
 <script>
+window.addEventListener("error",e=>{const a=document.getElementById("app");if(a&&e.message)a.innerHTML=`<div class="card warn"><h2>Errore di caricamento</h2><p>${String(e.message)}</p><button type="button" onclick="location.reload()">Ricarica</button></div>`});
+window.addEventListener("unhandledrejection",e=>{const a=document.getElementById("app");if(a&&e.reason)a.innerHTML=`<div class="card warn"><h2>Errore di caricamento</h2><p>${String(e.reason?.message||e.reason)}</p><button type="button" onclick="location.reload()">Ricarica</button></div>`});
 "use strict";
 const SUPABASE_URL="https://fwrnklssnxnfiigiswzu.supabase.co";
 const SUPABASE_KEY="sb_publishable_6sXvorsx0MIhqMKof-vQZA_MM1PyZM9";
