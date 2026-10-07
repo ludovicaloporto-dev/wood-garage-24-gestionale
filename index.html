@@ -281,7 +281,8 @@ async function saveEditedOrder(){
   const id=editingOrderId,o=db.orders.find(x=>x.id===id);if(!o)return;
   const customer=$("oc").value.trim(),items=collectItems();
   if(!customer||!items.length)return alert("Inserisci cliente e almeno un articolo.");
-  const subtotal=items.reduce((a,x)=>a+x.qty*x.sell,0),discount=Math.min(Math.max(0,num($("odiscount").value)),subtotal),total=Math.max(0,subtotal-discount),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);\n  const ship=getShipping();
+  const subtotal=items.reduce((a,x)=>a+x.qty*x.sell,0),discount=Math.min(Math.max(0,num($("odiscount").value)),subtotal),total=Math.max(0,subtotal-discount),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);
+  const ship=getShipping();
   const oldItems=o.items.slice();
 
   // Aggiorna il magazzino usando la differenza tra vecchie e nuove quantità.
