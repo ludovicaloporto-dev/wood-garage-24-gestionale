@@ -88,11 +88,22 @@ function newOrder(){
  <datalist id="customers">${customerOptions()}</datalist></label>
  <label>Telefono / WhatsApp<input id="phone" placeholder="Numero"></label>
  <div id="new-client-box"></div>
- <div class="grid"><label>📅 Data consegna<input id="delivery" type="date"></label><label>Stato<select id="status"><option>Nuovo</option><option>In lavorazione</option><option>In attesa approvazione</option><option>Pronto</option></select></label><label>🎁 Sconto €<input id="odiscount" type="text" inputmode="decimal" value="0" placeholder="0,00" oninput="calc()"></label></div>
+ <div class="grid"><label>📅 Data consegna<input id="delivery" type="date"></label><label>Stato<select id="status"><option>Nuovo</option><option>In lavorazione</option><option>In attesa approvazione</option><option>Pronto</option></select></label><label>🎁 Sconto €<input id="odiscount" type="text" inputmode="decimal" value="0" placeholder="0,00" oninput="calc()"></label><label style="grid-column:1/-1"><span style="display:flex;align-items:center;gap:8px"><input id="shipping_enabled" type="checkbox" onchange="toggleShipping()" style="width:auto"> 🚚 Ordine con spedizione</span></label><div id="shipping-box" style="grid-column:1/-1"></div></div>
  </div>
  <div class="card"><div class="row"><div><h2 style="margin:0">🧾 Articoli</h2><div class="muted">Puoi inserirne più di uno.</div></div><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
  <div class="card"><h3 style="margin-top:0">Riepilogo</h3><div id="sum" class="grid"></div><div class="actions"><button class="primary" onclick="saveOrder()">💾 Salva ordine</button></div></div>`;
  $("customer").addEventListener("input",fillPhone);addItem();
+}
+function shippingFields(data={}){
+ return `<div class="article" style="margin-top:8px"><b>🚚 Dati spedizione</b><label>Destinatario<input id="shipping_name" value="${esc(data.name||"")}" placeholder="Nome e cognome"></label><label>Indirizzo<input id="shipping_address" value="${esc(data.address||"")}" placeholder="Via e numero civico"></label><div class="grid"><label>CAP<input id="shipping_cap" value="${esc(data.cap||"")}" inputmode="numeric"></label><label>Città<input id="shipping_city" value="${esc(data.city||"")}"></label><label>Provincia<input id="shipping_province" value="${esc(data.province||"")}" maxlength="2"></label><label>💶 Costo trasporto €<input id="shipping_cost" type="text" inputmode="decimal" value="${data.cost||0}" placeholder="0,00" oninput="calc()"></label></div></div>`;
+}
+function toggleShipping(data={}){
+ const box=$("shipping-box");if(!box)return;
+ box.innerHTML=$("shipping_enabled").checked?shippingFields(data):"";
+ calc();
+}
+function getShipping(){
+ return {enabled:!!$("shipping_enabled")?.checked,cost:Math.max(0,num($("shipping_cost")?.value)),name:$("shipping_name")?.value.trim()||"",address:$("shipping_address")?.value.trim()||"",cap:$("shipping_cap")?.value.trim()||"",city:$("shipping_city")?.value.trim()||"",province:$("shipping_province")?.value.trim()||""};
 }
 function fillPhone(){const c=clients.find(x=>x.name.toLowerCase()===$("customer").value.trim().toLowerCase());if(c)$("phone").value=c.phone||""}
 async function newClient(){
@@ -210,13 +221,13 @@ async function createQuotePdf(orderId){
   doc.text("Cliente: "+String(o.customer_name||""),20,45);if(o.customer_phone)doc.text("Telefono: "+String(o.customer_phone),20,52);
   let y=66;doc.setFont("helvetica","bold");doc.text("Articolo",20,y);doc.text("Q.tà",125,y);doc.text("Prezzo",145,y);doc.text("Totale",175,y);doc.setFont("helvetica","normal");y+=8;
   for(const i of(o.items||[])){const lines=doc.splitTextToSize(String(i.product_name||"Articolo"),95);doc.text(lines,20,y);doc.text(String(i.quantity),125,y);doc.text(money(i.public_price_unit),145,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),175,y);y+=Math.max(7,lines.length*5)+4;if(i.personalization){doc.setFontSize(9);doc.text("Personalizzazione: "+String(i.personalization),20,y);doc.setFontSize(11);y+=7;}if(y>270){doc.addPage();y=20;}}
-  doc.line(20,y,190,y);y+=9;doc.setFont("helvetica","normal");doc.setFontSize(11);const subtotal=(+o.total||0)+(+o.discount||0);doc.text("Subtotale: "+money(subtotal),20,y);y+=7;if((+o.discount||0)>0){doc.text("Sconto applicato: − "+money(o.discount),20,y);y+=7;}doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("Totale preventivo: "+money(o.total),20,y);y+=10;doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Preventivo Wood Garage 24 · Importo riferito all'ordine indicato.",20,y);
+  doc.line(20,y,190,y);y+=9;doc.setFont("helvetica","normal");doc.setFontSize(11);const subtotal=(+o.total||0)+(+o.discount||0),customerTotal=(+o.total||0)+((+o.shipping_cost||0));doc.text("Subtotale: "+money(subtotal),20,y);y+=7;if((+o.discount||0)>0){doc.text("Sconto applicato: − "+money(o.discount),20,y);y+=7;}if(o.shipping_enabled&&(+o.shipping_cost||0)>0){doc.text("Spedizione: "+money(o.shipping_cost),20,y);y+=7;}doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("Totale da corrispondere: "+money(customerTotal),20,y);y+=8;if(o.shipping_enabled){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Spedizione: "+String(o.shipping_name||""),20,y);y+=5;doc.text(String(o.shipping_address||""),20,y);y+=5;doc.text(String((o.shipping_cap||"")+" "+(o.shipping_city||"")+(o.shipping_province?" ("+o.shipping_province+")":"")),20,y);y+=8;}y+=10;doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Preventivo Wood Garage 24 · Importo riferito all'ordine indicato.",20,y);
   const file=new File([doc.output("blob")],"Preventivo_Ordine_"+o.order_number+".pdf",{type:"application/pdf"});
   if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Preventivo Wood Garage 24 · Ordine #"+o.order_number,text:"Preventivo per "+o.customer_name,files:[file]});
   else{const url=URL.createObjectURL(file),a=document.createElement("a");a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Preventivo PDF creato");}
  }catch(e){if(e?.name!=="AbortError")fail(e)}
 }
-function calc(){let subtotal=0;document.querySelectorAll(".article").forEach(a=>subtotal+=num(a.querySelector(".qty").value)*num(a.querySelector(".sell").value));const discount=Math.min(Math.max(0,num($("odiscount")?.value)),subtotal);const total=Math.max(0,subtotal-discount);if($("sum"))$("sum").innerHTML=`<div><div class="muted">Subtotale</div><div class="big">${money(subtotal)}</div></div><div><div class="muted">Sconto</div><div class="big">${discount?"− ":""}${money(discount)}</div></div><div><div class="muted">Totale ordine</div><div class="big">${money(total)}</div></div>`;if($("total"))$("total").textContent=money(total)}
+function calc(){let subtotal=0;document.querySelectorAll(".article").forEach(a=>subtotal+=num(a.querySelector(".qty").value)*num(a.querySelector(".sell").value));const discount=Math.min(Math.max(0,num($("odiscount")?.value)),subtotal);const total=Math.max(0,subtotal-discount),ship=getShipping();if($("sum"))$("sum").innerHTML=`<div><div class="muted">Subtotale</div><div class="big">${money(subtotal)}</div></div><div><div class="muted">Sconto</div><div class="big">${discount?"− ":""}${money(discount)}</div></div><div><div class="muted">Totale ordine</div><div class="big">${money(total)}</div></div>${ship.enabled?`<div><div class="muted">Spedizione</div><div class="big">${money(ship.cost)}</div></div><div><div class="muted">Totale cliente</div><div class="big">${money(total+ship.cost)}</div></div>`:""}`;if($("total"))$("total").textContent=money(total)}
 function previewGraphic(el){
  const f=el.querySelector(".graphic").files[0];if(!f)return;
  const rd=new FileReader();rd.onload=()=>{el.dataset.graphicData=rd.result;el.querySelector(".preview-area").innerHTML=`<div class="preview"><img src="${rd.result}"><div class="wm">WOOD GARAGE 24</div></div>`};rd.readAsDataURL(f)
@@ -236,11 +247,11 @@ async function uploadGraphic(orderId,itemId,data){
 async function saveOrder(){
  try{
   const customer=$("customer").value.trim(),items=collect();if(!customer||!items.length)return alert("Inserisci cliente e almeno un articolo.");
-  const subtotal=items.reduce((a,x)=>a+x.qty*x.sell,0),discount=Math.min(Math.max(0,num($("odiscount")?.value)),subtotal),total=Math.max(0,subtotal-discount),cost=items.reduce((a,x)=>a+x.qty*x.cost,0);
+  const subtotal=items.reduce((a,x)=>a+x.qty*x.sell,0),discount=Math.min(Math.max(0,num($("odiscount")?.value)),subtotal),total=Math.max(0,subtotal-discount),cost=items.reduce((a,x)=>a+x.qty*x.cost,0),ship=getShipping();
   let id=editingId,number;
   if(!id){
    number=nextNumber();
-   const r=await sb.from("orders").insert({order_number:number,customer_name:customer,customer_phone:$("phone").value.trim(),order_date:new Date().toISOString().slice(0,10),delivery_date:$("delivery").value||null,status:$("status").value,total,discount,total_cost:cost,paid:0,created_by:user.id}).select().single();
+   const r=await sb.from("orders").insert({order_number:number,customer_name:customer,customer_phone:$("phone").value.trim(),order_date:new Date().toISOString().slice(0,10),delivery_date:$("delivery").value||null,status:$("status").value,total,discount,shipping_enabled:ship.enabled,shipping_cost:ship.cost,shipping_name:ship.name,shipping_address:ship.address,shipping_cap:ship.cap,shipping_city:ship.city,shipping_province:ship.province,total_cost:cost,paid:0,created_by:user.id}).select().single();
    if(r.error)throw r.error;id=r.data.id;
   }else{
    const old=orders.find(o=>o.id===id);number=old.order_number;
@@ -261,7 +272,7 @@ async function saveOrder(){
     const sr=await sb.from("products").update({quantity:newQty}).eq("id",productId);if(sr.error)throw sr.error;
    }
 
-   const r=await sb.from("orders").update({customer_name:customer,customer_phone:$("phone").value.trim(),delivery_date:$("delivery").value||null,status:$("status").value,total,discount,total_cost:cost}).eq("id",id);if(r.error)throw r.error;
+   const r=await sb.from("orders").update({customer_name:customer,customer_phone:$("phone").value.trim(),delivery_date:$("delivery").value||null,status:$("status").value,total,discount,shipping_enabled:ship.enabled,shipping_cost:ship.cost,shipping_name:ship.name,shipping_address:ship.address,shipping_cap:ship.cap,shipping_city:ship.city,shipping_province:ship.province,total_cost:cost}).eq("id",id);if(r.error)throw r.error;
    const dr=await sb.from("order_items").delete().eq("order_id",id);if(dr.error)throw dr.error;
   }
   const c=clients.find(x=>x.name.toLowerCase()===customer.toLowerCase());
@@ -283,10 +294,10 @@ async function editOrder(id){
  </div>
  <datalist id="customers">${customerOptions()}</datalist></label><label>Telefono / WhatsApp<input id="phone" value="${esc(o.customer_phone||"")}"></label>
  <div id="new-client-box"></div>
- <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label><label>🎁 Sconto €<input id="odiscount" type="text" inputmode="decimal" value="${o.discount||0}" placeholder="0,00" oninput="calc()"></label></div></div>
+ <div class="grid"><label>📅 Data consegna<input id="delivery" type="date" value="${o.delivery_date||""}"></label><label>Stato<select id="status">${["Nuovo","In lavorazione","In attesa approvazione","Pronto","Consegnato"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></label><label>🎁 Sconto €<input id="odiscount" type="text" inputmode="decimal" value="${o.discount||0}" placeholder="0,00" oninput="calc()"></label><label style="grid-column:1/-1"><span style="display:flex;align-items:center;gap:8px"><input id="shipping_enabled" type="checkbox" onchange="toggleShipping()" style="width:auto" ${o.shipping_enabled?"checked":""}> 🚚 Ordine con spedizione</span></label><div id="shipping-box" style="grid-column:1/-1"></div></div></div>
  <div class="card"><div class="row"><h2 style="margin:0">🧾 Articoli</h2><button onclick="addItem()">＋ Articolo</button></div><div id="items"></div></div>
  <div class="card"><h3 style="margin-top:0">Riepilogo</h3><div id="sum" class="grid"></div><div class="card" style="margin:10px 0 0"><div class="row"><div><div class="muted">Già pagato</div><div class="big">${money(o.paid||0)}</div></div><div><div class="muted">Da incassare</div><div class="big">${money(Math.max(0,(+o.total||0)-(+o.paid||0)))}</div></div></div><button type="button" class="primary" style="width:100%;margin-top:10px" onclick="registerPaymentMobile('${o.id}')">💳 Registra pagamento</button></div><div class="actions"><button class="primary" onclick="saveOrder()">💾 Salva modifiche</button></div><div class="actions"><button onclick="createQuotePdf('${o.id}')">📄 Invia preventivo PDF</button><button onclick="shareGraphic('${o.id}')">🖼️ Invia grafica con filigrana</button><button class="danger" onclick="deleteOrderMobile('${o.id}')">🗑️ Elimina ordine</button></div></div>`;
- $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));calc();
+ $("customer").addEventListener("input",fillPhone);(o.items||[]).forEach(i=>addItem({productId:i.product_id,qty:i.quantity,sell:i.public_price_unit,notes:i.personalization,graphicPath:i.original_graphic_path}));toggleShipping({name:o.shipping_name,address:o.shipping_address,cap:o.shipping_cap,city:o.shipping_city,province:o.shipping_province,cost:o.shipping_cost});calc();
 }
 (async function start(){try{const r=await sb.auth.getSession();if(r.data.session){user=r.data.session.user;await boot()}else auth()}catch(e){auth()}})();
 </script></body></html>
