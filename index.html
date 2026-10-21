@@ -52,7 +52,7 @@ hr{border:0;border-top:1px solid #eee;margin:16px 0}
 </main>
 <div id="modal" class="hidden"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js'"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" onerror="this.onerror=null;this.src='https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js'"></script>
 <script>
 window.addEventListener("error",e=>{const a=document.getElementById("app");if(a&&e.message)a.innerHTML=`<div class="card warn"><h2>Errore di caricamento</h2><p>${String(e.message)}</p><button type="button" onclick="location.reload()">Ricarica</button></div>`});
 window.addEventListener("unhandledrejection",e=>{const a=document.getElementById("app");if(a&&e.reason)a.innerHTML=`<div class="card warn"><h2>Errore di caricamento</h2><p>${String(e.reason?.message||e.reason)}</p><button type="button" onclick="location.reload()">Ricarica</button></div>`});
