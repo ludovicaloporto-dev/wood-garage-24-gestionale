@@ -216,8 +216,8 @@ async function deleteOrderMobile(id){
 async function createQuotePdf(orderId){
  try{
   const o=orders.find(x=>x.id===orderId);if(!o)return;if(!window.jspdf?.jsPDF)throw new Error("Generatore PDF non disponibile. Riprova tra poco.");
-  const {jsPDF}=window.jspdf,doc=new jsPDF();const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),left=20,right=20,usable=pageW-left-right;
-  const customerTotal=(+o.total||0)+((+o.shipping_cost||0));
+  const {jsPDF}=window.jspdf,doc=new jsPDF(),pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),left=20,right=20,usable=pageW-left-right;
+  const customerTotal=(+o.total||0)+(+o.shipping_cost||0);
   const rawDeposit=prompt("Acconto richiesto alla cliente (€). Lascia 0 se non è previsto:","0");if(rawDeposit===null)return;
   const deposit=Math.max(0,num(rawDeposit));if(deposit>customerTotal)return alert("L’acconto richiesto non può superare il totale del preventivo.");
   const balance=Math.max(0,customerTotal-deposit);
@@ -227,14 +227,17 @@ async function createQuotePdf(orderId){
   let y=66;
   const ensure=(height)=>{if(y+height>pageH-22){doc.addPage();y=20;}};
   const line=(text,x=left,size=10,bold=false)=>{doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);const lines=doc.splitTextToSize(String(text),usable-(x-left));ensure(lines.length*(size*.42+1)+3);doc.text(lines,x,y);y+=lines.length*(size*.42+1)+3;};
-  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("Articolo",left,y);doc.text("Q.tà",left+usable*.68,y);doc.text("Prezzo",left+usable*.78,y);doc.text("Totale",left+usable*.91,y);y+=7;doc.setFont("helvetica","normal");
+  const xQty=left+usable*.68,xPrice=left+usable*.78,xTotal=left+usable*.91,descWidth=usable*.62;
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("Articolo",left,y);doc.text("Q.tà",xQty,y);doc.text("Prezzo",xPrice,y);doc.text("Totale",xTotal,y);y+=7;doc.setFont("helvetica","normal");
   for(const i of(o.items||[])){
-   const productLines=doc.splitTextToSize(String(i.product_name||"Articolo"),usable*.30);
-   const noteLines=i.personalization?doc.splitTextToSize("Personalizzazione: "+String(i.personalization),usable*.60):[];
-   const rowH=Math.max(productLines.length*5,noteLines.length*4.5,7)+8;ensure(rowH+3);
-   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(productLines,left,y);
-   doc.setFont("helvetica","normal");doc.text(String(i.quantity),left+usable*.68,y);doc.text(money(i.public_price_unit),left+usable*.78,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),left+usable*.91,y);
-   if(noteLines.length){doc.setFontSize(9);doc.text(noteLines,left+usable*.34,y);}
+   const productLines=doc.splitTextToSize(String(i.product_name||"Articolo"),descWidth);
+   const noteLines=i.personalization?doc.splitTextToSize("Personalizzazione: "+String(i.personalization),descWidth):[];
+   const productH=productLines.length*4.5+2,noteH=noteLines.length*4.2;
+   const rowH=productH+noteH+5;ensure(rowH+4);
+   doc.setFont("helvetica","bold");doc.setFontSize(9.5);doc.text(productLines,left,y);
+   if(noteLines.length){doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.text(noteLines,left,y+productH);}
+   doc.setFont("helvetica","normal");doc.setFontSize(9.5);
+   doc.text(String(i.quantity),xQty,y);doc.text(money(i.public_price_unit),xPrice,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),xTotal,y);
    y+=rowH;doc.setDrawColor(175);doc.setLineWidth(.45);doc.line(left,y-2,pageW-right,y-2);y+=5;
   }
   ensure(55);doc.setFont("helvetica","normal");doc.setFontSize(10);const subtotal=(+o.total||0)+(+o.discount||0);
