@@ -216,12 +216,35 @@ async function deleteOrderMobile(id){
 async function createQuotePdf(orderId){
  try{
   const o=orders.find(x=>x.id===orderId);if(!o)return;if(!window.jspdf?.jsPDF)throw new Error("Generatore PDF non disponibile. Riprova tra poco.");
-  const {jsPDF}=window.jspdf,doc=new jsPDF();doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("WOOD GARAGE 24",20,22);
-  doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("PREVENTIVO",20,31);doc.text("Ordine #"+o.order_number,150,22);doc.text("Data: "+(o.order_date||new Date().toISOString().slice(0,10)),150,29);
-  doc.text("Cliente: "+String(o.customer_name||""),20,45);if(o.customer_phone)doc.text("Telefono: "+String(o.customer_phone),20,52);
-  let y=66;doc.setFont("helvetica","bold");doc.text("Articolo",20,y);doc.text("Q.tà",125,y);doc.text("Prezzo",145,y);doc.text("Totale",175,y);doc.setFont("helvetica","normal");y+=8;
-  for(const i of(o.items||[])){const lines=doc.splitTextToSize(String(i.product_name||"Articolo"),95);doc.text(lines,20,y);doc.text(String(i.quantity),125,y);doc.text(money(i.public_price_unit),145,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),175,y);y+=Math.max(7,lines.length*5)+4;if(i.personalization){doc.setFontSize(9);doc.text("Personalizzazione: "+String(i.personalization),20,y);doc.setFontSize(11);y+=7;}if(y>270){doc.addPage();y=20;}}
-  doc.line(20,y,190,y);y+=9;doc.setFont("helvetica","normal");doc.setFontSize(11);const subtotal=(+o.total||0)+(+o.discount||0),customerTotal=(+o.total||0)+((+o.shipping_cost||0));doc.text("Subtotale: "+money(subtotal),20,y);y+=7;if((+o.discount||0)>0){doc.text("Sconto applicato: − "+money(o.discount),20,y);y+=7;}if(o.shipping_enabled&&(+o.shipping_cost||0)>0){doc.text("Spedizione: "+money(o.shipping_cost),20,y);y+=7;}doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text("Totale da corrispondere: "+money(customerTotal),20,y);y+=8;if(o.shipping_enabled){doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Spedizione: "+String(o.shipping_name||""),20,y);y+=5;doc.text(String(o.shipping_address||""),20,y);y+=5;doc.text(String((o.shipping_cap||"")+" "+(o.shipping_city||"")+(o.shipping_province?" ("+o.shipping_province+")":"")),20,y);y+=8;}y+=10;doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("Preventivo Wood Garage 24 · Importo riferito all'ordine indicato.",20,y);
+  const {jsPDF}=window.jspdf,doc=new jsPDF();const pageW=doc.internal.pageSize.getWidth(),pageH=doc.internal.pageSize.getHeight(),left=20,right=20,usable=pageW-left-right;
+  const customerTotal=(+o.total||0)+((+o.shipping_cost||0));
+  const rawDeposit=prompt("Acconto richiesto alla cliente (€). Lascia 0 se non è previsto:","0");if(rawDeposit===null)return;
+  const deposit=Math.max(0,num(rawDeposit));if(deposit>customerTotal)return alert("L’acconto richiesto non può superare il totale del preventivo.");
+  const balance=Math.max(0,customerTotal-deposit);
+  doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text("WOOD GARAGE 24",left,22);
+  doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text("PREVENTIVO",left,31);doc.text("Ordine #"+o.order_number,pageW-60,22);doc.text("Data: "+(o.order_date||new Date().toISOString().slice(0,10)),pageW-60,29);
+  doc.text("Cliente: "+String(o.customer_name||""),left,45);if(o.customer_phone)doc.text("Telefono: "+String(o.customer_phone),left,52);
+  let y=66;
+  const ensure=(height)=>{if(y+height>pageH-22){doc.addPage();y=20;}};
+  const line=(text,x=left,size=10,bold=false)=>{doc.setFont("helvetica",bold?"bold":"normal");doc.setFontSize(size);const lines=doc.splitTextToSize(String(text),usable-(x-left));ensure(lines.length*(size*.42+1)+3);doc.text(lines,x,y);y+=lines.length*(size*.42+1)+3;};
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("Articolo",left,y);doc.text("Q.tà",left+usable*.68,y);doc.text("Prezzo",left+usable*.78,y);doc.text("Totale",left+usable*.91,y);y+=7;doc.setFont("helvetica","normal");
+  for(const i of(o.items||[])){
+   const productLines=doc.splitTextToSize(String(i.product_name||"Articolo"),usable*.30);
+   const noteLines=i.personalization?doc.splitTextToSize("Personalizzazione: "+String(i.personalization),usable*.60):[];
+   const rowH=Math.max(productLines.length*5,noteLines.length*4.5,7)+8;ensure(rowH+3);
+   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(productLines,left,y);
+   doc.setFont("helvetica","normal");doc.text(String(i.quantity),left+usable*.68,y);doc.text(money(i.public_price_unit),left+usable*.78,y);doc.text(money((+i.quantity||0)*(+i.public_price_unit||0)),left+usable*.91,y);
+   if(noteLines.length){doc.setFontSize(9);doc.text(noteLines,left+usable*.34,y);}
+   y+=rowH;doc.setDrawColor(175);doc.setLineWidth(.45);doc.line(left,y-2,pageW-right,y-2);y+=5;
+  }
+  ensure(55);doc.setFont("helvetica","normal");doc.setFontSize(10);const subtotal=(+o.total||0)+(+o.discount||0);
+  doc.text("Subtotale: "+money(subtotal),pageW-right,y,{align:"right"});y+=7;
+  if((+o.discount||0)>0){doc.text("Sconto applicato: − "+money(o.discount),pageW-right,y,{align:"right"});y+=7;}
+  if(o.shipping_enabled&&(+o.shipping_cost||0)>0){doc.text("Spedizione: "+money(o.shipping_cost),pageW-right,y,{align:"right"});y+=7;}
+  doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text("Totale da corrispondere: "+money(customerTotal),pageW-right,y,{align:"right"});y+=9;
+  doc.setFont("helvetica","normal");doc.setFontSize(11);doc.text("Acconto richiesto: "+money(deposit),pageW-right,y,{align:"right"});y+=7;doc.text("Saldo da versare: "+money(balance),pageW-right,y,{align:"right"});y+=9;
+  if(o.shipping_enabled){ensure(28);doc.setFontSize(9);doc.text("Spedizione: "+String(o.shipping_name||""),left,y);y+=5;doc.text(String(o.shipping_address||""),left,y);y+=5;doc.text(String((o.shipping_cap||"")+" "+(o.shipping_city||"")+(o.shipping_province?" ("+o.shipping_province+")":"")),left,y);y+=8;}
+  line("Preventivo Wood Garage 24 · Importo riferito all'ordine indicato.",left,9,false);
   const file=new File([doc.output("blob")],"Preventivo_Ordine_"+o.order_number+".pdf",{type:"application/pdf"});
   if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Preventivo Wood Garage 24 · Ordine #"+o.order_number,text:"Preventivo per "+o.customer_name,files:[file]});
   else{const url=URL.createObjectURL(file),a=document.createElement("a");a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Preventivo PDF creato");}
